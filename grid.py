@@ -1,78 +1,122 @@
 import numpy as np
-import pygame as pg
+import plotly.express as px
+
 
 class GridEnv():
-    def __init__(self, grid_size):
+    def __init__(self, grid_size, humans, walls):
         self.grid_size = grid_size
         self.grid = np.zeros((grid_size, grid_size))
         self.state = (0, 0)
-        self.humans_positions = []
+        self.humans = humans
+        self.walls = walls
+        self.humans_cells = []
+        self.wall_cells = []
         self.non_writable = []
+
+    def build_env(self):
+        self.place_walls(self.walls)
+        self.place_humans(self.humans)
 
     def place_humans(self, humans):
         for human in humans:
             self.state = (self.grid_size - human[0], human[1] - 1)
-            self.grid[self.state] = 5
-            self.humans_positions.append(self.state)
-            self.add_aura()
+            self.grid[self.state] = 1.1
+            self.humans_cells.append(self.state)
+            self.non_writable.append(self.state)
+            self.human_aura()
 
-    def add_aura(self):
+    def human_aura(self):
         x, y = self.state[0], self.state[1]
         distances = []
         neighbors_index = []
 
         for i in range(self.grid_size):
             for j in range(self.grid_size):
-                distance= np.sqrt((i-x)**2+(j-y)**2)
-                if distance <= 3*np.sqrt(2) and distance > 0:
-                    distances.append(distance)
-                    neighbors_index.append([i,j])
+                distance = np.sqrt((x - i) ** 2 + (y - j) ** 2)
 
-        print(distances)
-        for index, neighbor in enumerate(neighbors_index):
-            if distances[index] <= np.sqrt(2):
-                self.grid[neighbor[0], neighbor[1]] += 0.6
-                print("0.6", distances[index])
-            elif 2 <= distances[index] <= np.sqrt(2)*3:
-                self.grid[neighbor[0], neighbor[1]] += 0.3
-                print("0.3", distances[index])
-            elif 3 <= distances[index] <= np.sqrt(2)*4:
-                self.grid[neighbor[0], neighbor[1]] += 0.1
-                print("0.1", distances[index])
-            else:
-                pass
+                if distance <= 2*np.sqrt(2) and distance > 0:
+                    distances.append(distance)
+                    neighbors_index.append([i, j])
+
+        for i in range(len(distances)):
+            # do not add aura value if neighbour is behind a wall
+            if neighbors_index[i] not in self.non_writable:
+                if distances[i] <= np.sqrt(2):
+                    self.grid[neighbors_index[i][0], neighbors_index[i][1]] += 0.6
+                elif 2 <= distances[i] <= np.sqrt(2)*3:
+                    self.grid[neighbors_index[i][0], neighbors_index[i][1]] += 0.3
+                else:
+                    pass
 
     def place_walls(self, walls):
-        self.walls = walls
         for wall in walls:
-            self.grid[wall.state] = 1
+            x1, y1 = wall[0][0], wall[0][1]
+            x2, y2 = wall[1][0], wall[1][1]
 
+            if x1 == x2:
+                for i in range(y1, y2):
+                    self.grid[x1, i] = 1
+                    self.non_writable.append([x1, i])
+                    self.wall_cells.append([x1, i])
+            elif y1 == y2:
+                for i in range(x1, x2):
+                    self.grid[i, y1] = 1
+                    self.non_writable.append([i, y1])
+                    self.wall_cells.append([i, y1])
 
+        self.wall_aura()
 
-def display(grid):
-    screen = pg.display.set_mode((900, 900))
-    clock = pg.time.Clock()
+    def wall_aura(self):
+        for wall_cell in self.wall_cells:
+            x, y = wall_cell[0], wall_cell[1]
+            distances = []
+            neighbors_index = []
 
-    surface = pg.surfarray.make_surface((np.rot90(grid.grid) * 255))
-    surface = pg.transform.scale(surface, (800, 800))  # Scaled a bit.
-    surface = pg.transform.flip(surface, True, False)
+            for i in range(self.grid_size):
+                for j in range(self.grid_size):
+                    distance = np.sqrt((x - i) ** 2 + (y - j) ** 2)
+                    if distance <= np.sqrt(2) and distance > 0:
+                        distances.append(distance)
+                        neighbors_index.append([i, j])
 
-    running = True
-    while running:
-        for event in pg.event.get():
-            if event.type == pg.QUIT:
-                running = False
+            for i in range(len(distances)):
+                if neighbors_index[i] not in self.non_writable:
+                    if distances[i] <= np.sqrt(2):
+                        self.grid[neighbors_index[i][0], neighbors_index[i][1]] = 0.5
+                    else:
+                        pass
 
-        screen.fill((30, 30, 30))
-        screen.blit(surface, (50, 50))
-        pg.display.flip()
-        clock.tick(60)
+    def display(self):
+        fig = px.imshow(self.grid)
+        fig.show()
 
 
 if __name__ == '__main__':
-    grid = GridEnv(20)
-    humans = [[1,9],[1,15],[1,20],[8,10],[12,12],[12,18],[18,5],[20,9],[20,20]]
-    grid.place_humans(humans)
-    print(grid.grid)
-    
-    display(grid)
+    humans = [[1, 9],
+              [1, 15],
+              [1, 20],
+              [8, 10],
+              [12, 12],
+              [12, 18],
+              [18, 5],
+              [20, 9],
+              [20, 20]]
+
+    walls = [[[2, 3], [20, 3]],
+             [[6, 5], [6, 8]],
+             [[9, 5], [9, 8]],
+             [[12, 5], [12, 8]],
+             [[15, 7], [20, 7]],
+             [[4, 9], [4, 14]],
+             [[9, 9], [9, 14]],
+             [[12, 10], [12, 14]],
+             [[15, 16], [19, 16]],
+             [[1, 15], [6, 15]],
+             [[2, 19], [7, 19]],
+             [[11, 18], [16, 18]],
+             [[15, 16], [20, 16]],
+             [[14, 12], [19, 12]]]
+
+    grid = GridEnv(20, humans, walls)
+    grid.build_env()
+    grid.display()
