@@ -17,37 +17,6 @@ class GridEnv():
         self.place_walls(self.walls)
         self.place_humans(self.humans)
 
-    def place_humans(self, humans):
-        for human in humans:
-            self.state = (self.grid_size - human[0], human[1] - 1)
-            self.grid[self.state] = 1.1
-            self.humans_cells.append(self.state)
-            self.non_writable.append(self.state)
-            self.human_aura()
-
-    def human_aura(self):
-        x, y = self.state[0], self.state[1]
-        distances = []
-        neighbors_index = []
-
-        for i in range(self.grid_size):
-            for j in range(self.grid_size):
-                distance = np.sqrt((x - i) ** 2 + (y - j) ** 2)
-
-                if distance <= 2*np.sqrt(2) and distance > 0:
-                    distances.append(distance)
-                    neighbors_index.append([i, j])
-
-        for i in range(len(distances)):
-            # do not add aura value if neighbour is behind a wall
-            if neighbors_index[i] not in self.non_writable:
-                if distances[i] <= np.sqrt(2):
-                    self.grid[neighbors_index[i][0], neighbors_index[i][1]] += 0.6
-                elif 2 <= distances[i] <= np.sqrt(2)*3:
-                    self.grid[neighbors_index[i][0], neighbors_index[i][1]] += 0.3
-                else:
-                    pass
-
     def place_walls(self, walls):
         for wall in walls:
             x1, y1 = wall[0][0], wall[0][1]
@@ -83,11 +52,63 @@ class GridEnv():
                 if neighbors_index[i] not in self.non_writable:
                     if distances[i] <= np.sqrt(2):
                         self.grid[neighbors_index[i][0], neighbors_index[i][1]] = 0.5
+                        # self.non_writable.append(neighbors_index[i])
                     else:
                         pass
 
-    def display(self):
-        fig = px.imshow(self.grid)
+    def place_humans(self, humans):
+        for human in humans:
+            self.state = (self.grid_size - human[0], human[1] - 1)
+            self.grid[self.state] = 1
+            self.humans_cells.append(self.state)
+            self.non_writable.append(self.state)
+            self.human_aura()
+
+    def human_aura(self):
+        x, y = self.state[0], self.state[1]
+        distances = []
+        neighbors_index = []
+
+        for i in range(self.grid_size):
+            for j in range(self.grid_size):
+                distance = np.sqrt((x - i) ** 2 + (y - j) ** 2)
+
+                if distance <= 2*np.sqrt(2) and distance > 0:
+                    distances.append(distance)
+                    neighbors_index.append([i, j])
+
+        # propagate the aura from the human to the neighbors cells
+        # when a wall is encountered, the aura stops propagating in that direction
+        for i in range(len(distances)):
+            # if neighbor cell is a wall
+            # push the cell after the wall in the direction of the wall to the non_writable list
+
+            if neighbors_index[i] in self.wall_cells:
+                if x == neighbors_index[i][0]:
+                    if y < neighbors_index[i][1]:
+                        self.non_writable.append([neighbors_index[i][0], neighbors_index[i][1] + 1])
+                    else:
+                        self.non_writable.append([neighbors_index[i][0], neighbors_index[i][1] - 1])
+                elif y == neighbors_index[i][1]:
+                    if x < neighbors_index[i][0]:
+                        self.non_writable.append([neighbors_index[i][0] + 1, neighbors_index[i][1]])
+                    else:
+                        self.non_writable.append([neighbors_index[i][0] - 1, neighbors_index[i][1]])
+
+            if neighbors_index[i] not in self.non_writable:
+                if distances[i] <= np.sqrt(2):
+                    self.grid[neighbors_index[i][0], neighbors_index[i][1]] += 0.6
+                elif distances[i] <= 2*np.sqrt(2):
+                    self.grid[neighbors_index[i][0], neighbors_index[i][1]] += 0.3
+                else:
+                    pass
+
+    def display(self, inverted=False):
+        template = 'plotly_white'
+        if inverted:
+            self.grid = 1 - self.grid
+            template = 'plotly_dark'
+        fig = px.imshow(self.grid, title='Grid Environment', template=template)
         fig.show()
 
 
@@ -119,4 +140,4 @@ if __name__ == '__main__':
 
     grid = GridEnv(20, humans, walls)
     grid.build_env()
-    grid.display()
+    grid.display(inverted=False)
