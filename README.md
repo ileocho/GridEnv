@@ -1,6 +1,6 @@
 # GridEnv
 
-### Execute robot.py
+### -> Execute robot.py
 
 - grid.py is building the environement
 - grid_struct.py contains the humans and walls coordinates
