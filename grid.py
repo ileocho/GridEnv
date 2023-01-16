@@ -1,7 +1,7 @@
 import numpy as np
-import plotly.express as px
-
-
+import matplotlib.pyplot as pp
+from matplotlib.colors import ListedColormap
+from grid_struct import humans, walls
 class GridEnv():
     def __init__(self, grid_size, humans, walls):
         self.grid_size = grid_size
@@ -12,6 +12,13 @@ class GridEnv():
         self.humans_cells = []
         self.wall_cells = []
         self.non_writable = []
+
+    def getgrid(self):
+        return self.grid
+
+    def getproba(self, current_location):
+        print(self.grid[current_location[0], current_location[1]])
+        return self.grid[current_location[0], current_location[1]]
 
     def build_env(self):
         self.place_walls(self.walls)
@@ -75,22 +82,31 @@ class GridEnv():
         for i in range(self.grid_size):
             for j in range(self.grid_size):
                 distance = np.sqrt((x - i) ** 2 + (y - j) ** 2)
-                if distance <= np.sqrt(2)*2 and distance > 0:
-                    distances.append(distance)
-                    neighbors_index.append([i, j])
+                if distance <= np.sqrt(2)*3 and distance > 0:
+                    if (x-3) <= i <= (x+3) and (y-3) <= j <= (y+3):
+                        distances.append(distance)
+                        neighbors_index.append([i, j])
 
         # cast a ray from the human to the neighbors and check if there is a wall in between
         # if there is a wall, then the neighbor is not visible to the human
         for i in range(len(distances)):
             if neighbors_index[i] not in self.non_writable:
                 if distances[i] <= np.sqrt(2):
-                    self.grid[neighbors_index[i][0], neighbors_index[i][1]] = 0.6
-                    # self.non_writable.append(neighbors_index[i])
+                    if self.grid[neighbors_index[i][0], neighbors_index[i][1]] < 0.6:
+                        self.grid[neighbors_index[i][0], neighbors_index[i][1]] = 0.6
+                        # self.non_writable.append(neighbors_index[i])
                 elif np.sqrt(2) < distances[i] <= np.sqrt(2)*2:
                     if self.ray_casting(self.state, neighbors_index[i]) == True:
                         # if the ray is not blocked, then the neighbor is visible to the human
-                        self.grid[neighbors_index[i][0], neighbors_index[i][1]] = 0.3
-                        # self.non_writable.append(neighbors_index[i])
+                        if self.grid[neighbors_index[i][0], neighbors_index[i][1]] < 0.3 or self.grid[neighbors_index[i][0], neighbors_index[i][1]] ==0.5:
+                            self.grid[neighbors_index[i][0], neighbors_index[i][1]] = 0.3
+                            # self.non_writable.append(neighbors_index[i])
+                elif np.sqrt(2)*2 < distances[i]:
+                    if self.ray_casting(self.state, neighbors_index[i]) == True:
+                        if self.grid[neighbors_index[i][0], neighbors_index[i][1]] < 0.1 or self.grid[neighbors_index[i][0], neighbors_index[i][1]] ==0.5:
+                            self.grid[neighbors_index[i][0], neighbors_index[i][1]] = 0.1
+                            # if the ray is not blocked, then the neighbor is visible to the human
+
                 else:
                     pass
 
@@ -147,42 +163,48 @@ class GridEnv():
         # if we get to this point, it means that the ray is not blocked
         return True
 
+    def update(self, location):
+        # remove human at position and update the grid
+        self.humans.remove([self.grid_size - location[0], location[1] + 1])
+        self.grid = np.zeros((self.grid_size, self.grid_size))
+        self.build_env()
+        self.display()
 
     def display(self, inverted=False):
         template = 'plotly_white'
         if inverted:
             self.grid = 1 - self.grid
             template = 'plotly_dark'
-        fig = px.imshow(self.grid, title='Grid Environment', template=template)
-        fig.show()
+        # fig = px.imshow(self.grid, color_continuous_scale='cividis_r', title='Grid Environment', template=template)
+
+        colors = ['white','palegreen', 'limegreen', 'silver', 'forestgreen', 'black', 'darkgreen']
+
+        matrix = np.array(self.grid)
+        for i in range(matrix.shape[0]):
+            for j in range(matrix.shape[1]):
+
+                if matrix[i, j] == 0.1:
+                    matrix[i, j] = 0.2
+                elif matrix[i, j] == 0.3:
+                    matrix[i, j] = 0.4
+                elif matrix[i, j] == 0.5:
+                    matrix[i, j] = 0.6
+                elif matrix[i, j] == 0.6:
+                    matrix[i, j] = 0.8
+
+        # Création de la palette de couleurs à partir de la liste de couleurs
+        color_map = ListedColormap(colors)
+
+        # Affichage de l'image en utilisant la palette de couleurs
+        fig, ax = pp.subplots()
+        # for x in range(0, 21):
+        #     ax.axvline(x)
+        # for y in range(0, 21):
+        #     ax.axhline(x)
 
 
-if __name__ == '__main__':
-    humans = [[1, 9],
-              [1, 15],
-              [1, 20],
-              [8, 10],
-              [12, 12],
-              [12, 18],
-              [18, 5],
-              [20, 9],
-              [20, 20]]
-
-    walls = [[[2, 3], [20, 3]],
-             [[6, 5], [6, 8]],
-             [[9, 5], [9, 8]],
-             [[12, 5], [12, 8]],
-             [[15, 7], [20, 7]],
-             [[4, 9], [4, 14]],
-             [[9, 9], [9, 14]],
-             [[12, 10], [12, 14]],
-             [[15, 16], [19, 16]],
-             [[1, 15], [6, 15]],
-             [[2, 19], [7, 19]],
-             [[11, 18], [16, 18]],
-             [[15, 16], [20, 16]],
-             [[14, 12], [19, 12]]]
-
-    grid = GridEnv(20, humans, walls)
-    grid.build_env()
-    grid.display(inverted=False)
+        ax.imshow(matrix, cmap=color_map, extent=[0, len(matrix[0]), 0, len(matrix)])
+        ax.set_yticks(range(len(matrix)))
+        ax.set_xticks(range(len(matrix[0])))
+        ax.grid()
+        pp.show()
